@@ -79,6 +79,10 @@ def _clean_env(monkeypatch):
     # cache for later ones, causing _resolve_auto_route to skip providers
     # that the test patched to return valid clients.
     import agent.auxiliary_client as _aux_mod
+    # Provider-resolution tests do not exercise the HTTP transport. Without
+    # this stub, constructing a client imports hermes_bootstrap, which probes
+    # the live installation's manifest during isolated test runs.
+    monkeypatch.setattr(_aux_mod, "_openai_http_client_kwargs", lambda base_url: {})
     _aux_mod._aux_unhealthy_until.clear()
     _aux_mod._aux_unhealthy_logged_at.clear()
     yield
@@ -686,6 +690,59 @@ class TestAnthropicOAuthFlag:
 
 
 class TestBuildCodexClient:
+    def test_raw_codex_client_selects_for_requested_model(self):
+        """The main agent must not ignore a model-specific eligible pool row."""
+        from agent.auxiliary_client import resolve_provider_client
+
+        class _Pool:
+            def has_credentials(self):
+                return True
+
+            def select(self, model=None):
+                if model != "gpt-6-sol":
+                    return None
+                return SimpleNamespace(
+                    runtime_api_key="test-token",
+                    runtime_base_url="https://chatgpt.com/backend-api/codex",
+                )
+
+        with (
+            patch("agent.auxiliary_client.load_pool", return_value=_Pool()),
+            patch("agent.auxiliary_client._read_codex_singleton_token",
+                  side_effect=AssertionError("pool row must be used")),
+            patch("agent.auxiliary_client.OpenAI") as mock_openai,
+            patch("agent.auxiliary_client._openai_http_client_kwargs", return_value={}),
+        ):
+            client, model = resolve_provider_client("openai-codex", "gpt-6-sol", raw_codex=True)
+
+        assert client is mock_openai.return_value
+        assert model == "gpt-6-sol"
+        assert mock_openai.call_args.kwargs["api_key"] == "test-token"
+
+    def test_codex_pool_selection_respects_requested_model(self):
+        """A different model's cooldown must not hide this model's OAuth row."""
+        from agent.auxiliary_client import _resolve_codex_credential_and_base
+
+        class _Pool:
+            def has_credentials(self):
+                return True
+
+            def select(self, model=None):
+                return SimpleNamespace(
+                    runtime_api_key="test-token",
+                    runtime_base_url="https://chatgpt.com/backend-api/codex",
+                ) if model == "gpt-6-sol" else None
+
+        with (
+            patch("agent.auxiliary_client.load_pool", return_value=_Pool()),
+            patch("agent.auxiliary_client._read_codex_singleton_token",
+                  side_effect=AssertionError("model-specific pool row must be used")),
+        ):
+            token, base = _resolve_codex_credential_and_base("gpt-6-sol")
+
+        assert token == "test-token"
+        assert base == "https://chatgpt.com/backend-api/codex"
+
     def test_pool_without_selected_entry_falls_back_to_auth_store(self):
         with (
             patch("agent.auxiliary_client._select_pool_entry", return_value=(True, None)),

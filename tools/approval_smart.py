@@ -120,13 +120,26 @@ def _smart_approve(command: str, description: str) -> str:
             'via -c flag" but is completely harmless.\n\n'
             "Respond with exactly one word: APPROVE, DENY, or ESCALATE"
         )
+        # Some hosted reasoning models ignore thinking-off and consume the tiny
+        # 16-token budget before emitting a verdict. Allow enough room for the
+        # single-word answer while keeping the guardian response bounded.
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
         response = call_llm(
-            task="approval", temperature=0, max_tokens=16, timeout=smart_timeout,
-            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            reasoning_config=_verdict_reasoning(),
+            task="approval", temperature=0, max_tokens=128, timeout=smart_timeout,
+            messages=messages, reasoning_config=_verdict_reasoning(),
         )
         logger.debug("Smart approvals: LLM call completed in %.1fs", time.monotonic() - _smart_t0)
         answer = (response.choices[0].message.content or "").strip().upper()
+        if not answer and getattr(response.choices[0], "finish_reason", None) == "length":
+            # Some reasoning models still exhaust 128 tokens before producing a verdict.
+            # Retry once with a bounded larger budget; never infer approval from an
+            # empty response, and never retry a genuine ESCALATE or provider error.
+            logger.warning("Smart approvals: empty length-limited answer; retrying with larger budget")
+            response = call_llm(
+                task="approval", temperature=0, max_tokens=512, timeout=smart_timeout,
+                messages=messages, reasoning_config=_verdict_reasoning(),
+            )
+            answer = (response.choices[0].message.content or "").strip().upper()
         if not answer:
             # WARNING, not DEBUG: an empty-but-200 body is an infrastructure failure, not a
             # verdict — typically finish_reason=="length" after a reasoning model spent the

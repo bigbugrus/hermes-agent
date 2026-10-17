@@ -11,12 +11,21 @@ a real expiry and stays on the credential path.
 from __future__ import annotations
 
 import pytest
+import sys
+from types import SimpleNamespace
 
 from agent.error_classifier import FailoverReason, classify_api_error
 from agent.turn_recovery import recover_after_classification
 from agent.turn_retry_state import TurnRetryState
 
 _TOKEN_EXPIRED = "Provided authentication token is expired. Please try signing in again."
+
+@pytest.fixture(autouse=True)
+def _avoid_live_bootstrap(monkeypatch):
+    # These unit tests exercise turn recovery, not installation activation.
+    monkeypatch.setitem(sys.modules, "hermes_bootstrap", SimpleNamespace(
+        _happy_eyeballs_create_connection=lambda *args, **kwargs: None,
+    ))
 
 
 class _Codex401(Exception):

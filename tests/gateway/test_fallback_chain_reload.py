@@ -12,7 +12,16 @@ full Feishu session path.
 from __future__ import annotations
 
 import time
+import sys
 from types import SimpleNamespace
+import pytest
+
+@pytest.fixture(autouse=True)
+def _avoid_live_bootstrap(monkeypatch):
+    # Gateway reload tests do not need installation activation.
+    monkeypatch.setitem(sys.modules, "hermes_bootstrap", SimpleNamespace(
+        _happy_eyeballs_create_connection=lambda *args, **kwargs: None,
+    ))
 
 
 def test_refresh_fallback_model_rereads_config(tmp_path, monkeypatch):
@@ -39,11 +48,11 @@ def test_refresh_fallback_model_rereads_config(tmp_path, monkeypatch):
     cfg.write_text(
         "fallback_providers:\n"
         "  - provider: openrouter\n"
-        "    model: anthropic/claude-sonnet-4.6\n"
+        "    model: openai/gpt-4o-mini\n"
     )
     updated = bound()
     assert updated == [
-        {"provider": "openrouter", "model": "anthropic/claude-sonnet-4.6"}
+        {"provider": "openrouter", "model": "openai/gpt-4o-mini"}
     ]
     assert runner._fallback_model == updated
 
@@ -62,7 +71,7 @@ def test_apply_fallback_chain_skips_while_cooldown_holds_fallback():
     )
     GatewayRunner._apply_fallback_chain_to_agent(
         agent,
-        [{"provider": "openrouter", "model": "anthropic/claude-sonnet-4.6"}],
+        [{"provider": "openrouter", "model": "openai/gpt-4o-mini"}],
     )
 
     assert agent._fallback_chain == live
