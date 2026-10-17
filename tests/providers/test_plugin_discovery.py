@@ -37,7 +37,9 @@ def test_bundled_plugins_discovered():
     plugins_dir = REPO_ROOT / "plugins" / "model-providers"
     assert plugins_dir.is_dir(), f"Missing {plugins_dir}"
 
-    child_dirs = [c for c in plugins_dir.iterdir() if c.is_dir()]
+    # An empty, untracked directory can be left by a local bootstrap; it is
+    # not an installed plugin and must not change the bundled-plugin invariant.
+    child_dirs = [c for c in plugins_dir.iterdir() if c.is_dir() and any(c.iterdir())]
     assert child_dirs, f"No provider plugins under {plugins_dir}"
 
     for child in child_dirs:
@@ -56,7 +58,7 @@ def test_all_profiles_register():
     from providers import list_providers
 
     plugins_dir = REPO_ROOT / "plugins" / "model-providers"
-    plugin_dir_count = sum(1 for c in plugins_dir.iterdir() if c.is_dir())
+    plugin_dir_count = sum(1 for c in plugins_dir.iterdir() if c.is_dir() and any(c.iterdir()))
 
     profiles = list_providers()
     names = sorted(p.name for p in profiles)
