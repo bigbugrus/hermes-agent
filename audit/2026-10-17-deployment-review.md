@@ -32,4 +32,10 @@
 - Validate each provider/fallback with a minimal authorized request, and test one backup restore in an isolated environment.
 - Maintain a least-privilege integration register with owner, read/write scope, audit log, expiry/review date and verified evidence. Never attach `.env`, `auth.json`, session transcripts, full config, raw logs or personal data to a public issue/PR.
 
-**Change record:** Source fixes are in the fork's audit PR; this document describes observed state, not approval to merge or deploy. Findings are time-bound to the snapshot above.
+## Follow-up check — 2026-10-17 11:29 MSK
+
+- The operator restarted the gateway at 11:08:44 MSK; `systemctl show` subsequently reported `active/running` and zero restarts. A sampled journal query since restart found no matches for the selected traceback/error/OAuth/EOF strings. This is a liveness check, **not** an end-to-end exercise of the two changed paths.
+- The isolated auxiliary-client and smart-approval test modules now pass: **247 passed**. Their test fixture was corrected to stub the unrelated HTTP transport helper instead of importing the production bootstrap and probing the live manifest. The change is committed in the same PR; production application code was not changed by this follow-up.
+- A single-process whole-suite invocation still cannot be taken as a passing full suite: collection encountered eight missing-optional-package errors despite the package being importable before pytest, consistent with cross-module bootstrap/path effects. The project's canonical per-file runner avoided that collection problem for the selected files, but an additional Anthropic end-to-end file failed when its installer could not fetch a pinned dependency after retries. A green **full** suite and live provider failover remain unverified.
+
+**Change record:** Source fixes and the test-isolation correction are in the fork's audit PR; this document describes observed state, not approval to merge or deploy. Findings are time-bound to the dated checks above.
