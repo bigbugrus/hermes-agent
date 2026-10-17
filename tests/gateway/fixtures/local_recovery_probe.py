@@ -52,7 +52,11 @@ CHILD_ENV_KEYS = ('PATH', 'LANG', 'TZ', 'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', '
 
 
 def child_env():
-    return {k: os.environ[k] for k in CHILD_ENV_KEYS if k in os.environ}
+    # Rebuilt daemon environments must retain the test guard and must never
+    # bootstrap optional tooling into the operator's Hermes installation.
+    keys = (*CHILD_ENV_KEYS, 'HERMES_TEST_ISOLATION', 'HERMES_DISABLE_LAZY_INSTALLS',
+            'HERMES_SKIP_NODE_BOOTSTRAP', 'UV_OFFLINE')
+    return {k: os.environ[k] for k in keys if k in os.environ}
 
 
 async def rpc(ws, method, **params):

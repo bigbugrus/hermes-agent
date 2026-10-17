@@ -133,6 +133,11 @@ class Home:
             # The child's state.db lives under tmp_path; the live-DB guard's documented child escape hatch.
             "HERMES_STATE_DB_GUARD_BYPASS": "1",
         })
+        # Preserve suite isolation in real CLI children despite the allowlist above.
+        for key in ('HERMES_TEST_ISOLATION', 'HERMES_DISABLE_LAZY_INSTALLS',
+                    'HERMES_SKIP_NODE_BOOTSTRAP', 'UV_OFFLINE'):
+            if key in os.environ:
+                env[key] = os.environ[key]
         env.update(extra or {})
         return env
 
