@@ -92,7 +92,11 @@ class TestCheckOpenrouterCacheStatus:
 
     def _make_agent(self):
         """Create a minimal AIAgent-like object with just the method under test."""
-        from run_agent import AIAgent
+        # This unit test needs only the method, not the CLI bootstrap. The real
+        # bootstrap probes the checkout's live manifest during this import.
+        import sys
+        with patch.dict(sys.modules, {"hermes_bootstrap": SimpleNamespace()}):
+            from run_agent import AIAgent
 
         # Use object.__new__ to skip __init__, then set the attributes we need
         agent = object.__new__(AIAgent)

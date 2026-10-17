@@ -1,8 +1,17 @@
 """Test that AuthError triggers fallback provider resolution (#7230)."""
 
 from unittest.mock import patch
+import sys
+from types import SimpleNamespace
 
 import pytest
+
+@pytest.fixture(autouse=True)
+def _avoid_live_bootstrap(monkeypatch):
+    # Gateway fallback resolution does not need the live install manifest.
+    monkeypatch.setitem(sys.modules, "hermes_bootstrap", SimpleNamespace(
+        _happy_eyeballs_create_connection=lambda *args, **kwargs: None,
+    ))
 
 
 class TestResolveRuntimeAgentKwargsAuthFallback:
