@@ -1505,6 +1505,35 @@ def _forbid_real_user_path_writes(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _avoid_live_checkout_payload_manifest(monkeypatch):
+    """Do not probe the installed manifest when unit tests import CLI/agent code.
+
+    The test checkout can itself live directly under the real Hermes home. Its
+    parent manifest and owning install state describe that installation, not a
+    test payload. Leave both lookups for every other root (including tmp_path
+    payload tests) untouched; the real-home I/O guard below stays enabled.
+    """
+    from pm import environments
+
+    checkout = Path(__file__).resolve().parent.parent
+    original = environments._payload_manifest
+    original_owner = environments.owning_home_root
+
+    def isolated_manifest(root):
+        if Path(root).resolve() == checkout:
+            return None
+        return original(root)
+
+    def isolated_owner(root):
+        if Path(root).resolve() == checkout:
+            return None
+        return original_owner(root)
+
+    monkeypatch.setattr(environments, "_payload_manifest", isolated_manifest)
+    monkeypatch.setattr(environments, "owning_home_root", isolated_owner)
+
+
+@pytest.fixture(autouse=True)
 def _forbid_real_hermes_home_io(monkeypatch, request):
     """Guard Python file/metadata/deletion calls and SQLite against real state.
 
