@@ -79,6 +79,10 @@ def _clean_env(monkeypatch):
     # cache for later ones, causing _resolve_auto_route to skip providers
     # that the test patched to return valid clients.
     import agent.auxiliary_client as _aux_mod
+    # Provider-resolution tests do not exercise the HTTP transport. Without
+    # this stub, constructing a client imports hermes_bootstrap, which probes
+    # the live installation's manifest during isolated test runs.
+    monkeypatch.setattr(_aux_mod, "_openai_http_client_kwargs", lambda base_url: {})
     _aux_mod._aux_unhealthy_until.clear()
     _aux_mod._aux_unhealthy_logged_at.clear()
     yield
