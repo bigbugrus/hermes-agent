@@ -1,0 +1,35 @@
+# Hermes deployment audit — sanitized external handoff
+
+**Snapshot:** 2026-10-17 (MSK). **Scope:** one self-hosted Hermes Agent deployment and its local source checkout. This is an operational review, not a penetration test or a complete attestation of all connected services. No credentials, raw logs, private network topology, user records, or runtime configuration files are included. The deployment-specific inventory is held in a separate private repository.
+
+## Evidence and version
+
+- `hermes --version` reported **v0.22.2+1087.g6223e53** (`6223e535a26a`), installed from Git. This includes local changes in the fork; it does not establish that the already-running gateway loaded those changes.
+- The gateway user service was **active** with zero systemd restarts reported at inspection; it had started at 10:11 MSK. Internal health checks returned HTTP 200 in the sampled check, while an unauthenticated external API request returned HTTP 401. Neither check exercises all agent tools or provider routes.
+- `hermes doctor` completed in an earlier audit pass. An active service and passing doctor do **not** imply error-free behavior.
+
+## Runtime architecture and trust boundaries
+
+`messaging clients → Hermes gateway / agent → local tools & scheduled jobs → external APIs / private repositories`.
+
+- The configured primary model was **openai-codex/gpt-6-sol**. The configured fallback order was OpenRouter `openai/gpt-6-sol`, `openai/gpt-6-luna`, `openrouter/free`. Configuration establishes intended routes, **not** a successful live request on each route. The user owns the routing decision; this audit did not alter it.
+- Web search and extraction were configured for Exa. Two enabled MCP entries were listed: `exa` and a business-monitor connector. The latter exposes query/status tools; its presence is not evidence of production writes.
+- The agent can act through filesystem/shell tools, Git, messaging, scheduled jobs, provider APIs and installed integration tools. Authorization and approval rules must be evaluated at each boundary; a connected tool alone is not proof of a successful or authorized action.
+- A private Git-backed knowledge Vault is both context source and a write target under its repository procedure. Other business systems (monitoring, CRM export, dashboards, email/calendar, messaging and router management) are documented in the **private** inventory with separate labels for *verified access*, *historical documentation*, and *not verified*. Do not infer direct administrative control over all of them.
+
+## Findings
+
+1. **Running-code uncertainty (high operational priority).** The source checkout contains fixes for OAuth credential selection and the smart-approval guardian retry, committed as `6223e535a2`. The gateway was started before these changes were confirmed in its process. No gateway restart was performed during this audit; live execution of those fixes remains unverified.
+2. **Regression suite incomplete.** A broad local run reported **215 passed, 32 failed**. A targeted run for the changed paths passed. Some broad-run failures interacted with the test/home bootstrap boundary; the 32 failures have **not** all been root-caused, and must not be relabeled harmless without reproducing in an isolated test home.
+3. **Operational warnings observed.** An earlier sampled gateway-journal review found empty guardian responses, tracebacks, clean EOF events and warnings relating to Codex OAuth availability. These are historical counts in a sampled interval, not current rates or proof of an outage. The gateway remained active. Raw journals are intentionally omitted because they may contain sensitive information.
+4. **Backup/restore proof absent.** Prior private inventory did not verify a recent successful restoration of the Hermes session database. The existence of a live database or backup-shaped files does not prove recoverability.
+5. **Scope gaps.** Production container/image metadata of the separate business monitor, actual fallback-provider failover, each external write permission, full message delivery, and end-to-end provider health were not attested here.
+
+## Recommended follow-up (not performed)
+
+- From an independent operator shell and maintenance window, restart the gateway if deployment of the reviewed changes is desired; then recheck service health and the guardian/OAuth code path. Avoid restarting it from a tool call hosted by that same gateway.
+- Re-run the broad test suite under an isolated `HERMES_HOME`, classify every failing test, and record exact command/environment and output **after redaction**.
+- Validate each provider/fallback with a minimal authorized request, and test one backup restore in an isolated environment.
+- Maintain a least-privilege integration register with owner, read/write scope, audit log, expiry/review date and verified evidence. Never attach `.env`, `auth.json`, session transcripts, full config, raw logs or personal data to a public issue/PR.
+
+**Change record:** Source fixes are in the fork's audit PR; this document describes observed state, not approval to merge or deploy. Findings are time-bound to the snapshot above.
